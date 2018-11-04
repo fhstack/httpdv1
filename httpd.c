@@ -316,7 +316,7 @@ void* handlerRequest(void* arg)
         j++;
     }
     method[i] = '\0';
-    if(DEBUG)
+    if(DEBUG) 
         printf("method:%s\n",method);
     while(j < sizeof(line) && isspace(line[j]))
     {
