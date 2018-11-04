@@ -15,10 +15,12 @@
 #define MAX 1024
 #define HOME_PAGE "index.html"
 #define PAGE_404  "404.html"
-
+#define true 1
+#define false 0
+int DEBUG = false;
 void usage(const char* proc)
 {
-    printf("Usage: %s [port]\n",proc);
+    printf("Usage: %s [port] [DEBUG?]\n",proc);
 }
 
 int startp(int port)
@@ -100,7 +102,8 @@ int echo_www(int sock,char* path,int size)
     int fd = open(path,O_RDONLY);
     if(fd < 0)
     {
-        printf("%s 打开失败\n",path);
+        if(DEBUG) 
+            printf("%s 打开失败\n",path);
         return 404;
     }
 
@@ -131,21 +134,25 @@ static void show_404(int sock)
     
     strcpy(path,"wwwroot/");
     strcat(path,PAGE_404);
-    printf("404 path: %s\n",path);
+    if(DEBUG)
+        printf("404 path: %s\n",path);
     
     int fd = open(path,O_RDONLY);
     if(fd > 0)
     {
-        printf("成功打开404文件\n");
+        if(DEBUG)
+            printf("成功打开404文件\n");
     }
     else
     {
-        printf("404文件打开失败\n");
+        if(DEBUG)
+            printf("404文件打开失败\n");
     }
     
     struct stat st;
     stat(path, &st);
-    printf("显示404页面\n");
+    if(DEBUG)
+        printf("显示404页面\n");
     sendfile(sock,fd,NULL,st.st_size);
 
     close(fd);
@@ -206,7 +213,7 @@ int exe_cgi(int sock,char* method,char* path,char* query_string)
             return 400;    //客户端的错误
         }
     }
-
+    
     int input[2];
     int output[2];
     pipe(input);
@@ -230,6 +237,7 @@ int exe_cgi(int sock,char* method,char* path,char* query_string)
         putenv(method_env);
         
         //用环境变量传递相关参数避免通过管道需要处理的序列化、反序列化的问题
+
         if(strcasecmp(method,"GET") == 0)   //GET方法的参数在query中
         {
             sprintf(query_string_env,"QUERY_STRING=%s",query_string);
@@ -295,7 +303,8 @@ void* handlerRequest(void* arg)
     int cgi = 0;
     getLine(sock,line,sizeof(line));    //请求行
 
-    printf("%s",line);
+    if(DEBUG)
+        printf("request line:%s",line);
     //GET /a/b/c%20x=1&&x!=2 HTTP/1.1
 
     int i = 0;
@@ -307,7 +316,8 @@ void* handlerRequest(void* arg)
         j++;
     }
     method[i] = '\0';
-
+    if(DEBUG)
+        printf("method:%s\n",method);
     while(j < sizeof(line) && isspace(line[j]))
     {
         j++;
@@ -321,12 +331,19 @@ void* handlerRequest(void* arg)
         i++;
         j++;
     }
-    url[j] = '\0';
-    printf("method: %s url: %s\n",method,url);
-    
+    //!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+    //这个地方！！！！！！下标一定不要写错！！！！！！
+    //不然调死你！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
+    //我当时把i写成了j
+    //这也是提醒了我们
+    //！！！！尽量不要用i,j之类的做下标
+    url[i] = '\0';
+    if(DEBUG)
+        printf("url:%s\n",url);
+
     if(strcasecmp("GET",method) == 0)
     {
-
+        ;
     }
     else if(strcasecmp("POST",method) == 0)
     {
@@ -334,6 +351,8 @@ void* handlerRequest(void* arg)
     }
     else
     {
+        if(DEBUG)
+            printf("其他方法\n");
         status_code = 400;
         clearHead(sock);
         goto end;
@@ -364,23 +383,26 @@ void* handlerRequest(void* arg)
     {
         strcat(path,HOME_PAGE);
     }
-    
-    printf("%s\n",path);
+    if(DEBUG)
+       printf("path: %s\n",path);
 
     struct stat st;
     if(stat(path,&st) < 0)
     {
-        printf("%s 不存在\n",path);
+        if(DEBUG)
+            printf("%s 不存在\n",path);
         status_code = 404;
         clearHead(sock);
         goto end;
     }
     else    //如果存在，那么判断是否为文件夹
     {
-        printf("%s 存在\n",path);
+        if(DEBUG)
+            printf("%s 存在\n",path);
         if(S_ISDIR(st.st_mode))    //是目录
         {
-            printf("%s 是目录\n",path);
+            if(DEBUG)
+                printf("%s 是目录\n",path);
             strcat(path,"/");
             strcat(path,HOME_PAGE);
         }
@@ -398,12 +420,14 @@ void* handlerRequest(void* arg)
         //method path cgi get->query_string
         if(cgi)
         {
-            printf("执行cgi\n");
+            if(DEBUG)
+                printf("执行cgi\n");
             status_code = exe_cgi(sock,method,path,query_string);
         }
         else
         {
-            printf("显示内容\n");
+            if(DEBUG)
+                printf("显示内容\n");
             status_code = echo_www(sock,path,st.st_size);
         }
     }
@@ -420,12 +444,14 @@ end:
 
 int main(int argc,char* argv[])
 {
-    if(argc != 2)
+    if(argc == 1 ||  argc > 3)
     {
         usage(argv[0]);
         return 1;
     }
 
+    if(argc == 3)
+        DEBUG = true;
     int listen_sock = startp(atoi(argv[1]));
 
     for( ; ; )
